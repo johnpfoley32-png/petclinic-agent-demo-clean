@@ -16,6 +16,9 @@
 
 package org.springframework.samples.petclinic.owner;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -24,7 +27,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.condition.DisabledInNativeImage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -89,6 +94,42 @@ class VisitControllerTests {
 			.andExpect(model().attributeHasErrors("visit"))
 			.andExpect(status().isOk())
 			.andExpect(view().name("pets/createOrUpdateVisitForm"));
+	}
+
+	@Nested
+	class LoadPetWithVisitErrorCases {
+
+		@Test
+		void testLoadPetWithVisitOwnerNotFound() throws Exception {
+			int missingOwnerId = 999;
+			given(owners.findById(missingOwnerId)).willReturn(Optional.empty());
+
+			ServletException ex = assertThrows(ServletException.class,
+					() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", missingOwnerId, TEST_PET_ID))
+						.andReturn());
+
+			assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+			assertThat(ex.getCause().getMessage()).contains("Owner not found with id: 999");
+		}
+
+		@Test
+		void testLoadPetWithVisitPetNotFound() throws Exception {
+			int missingPetId = 999;
+			// Owner exists but has no pet with this id
+			Owner owner = new Owner();
+			Pet pet = new Pet();
+			owner.addPet(pet);
+			pet.setId(TEST_PET_ID); // only pet with id 1
+			given(owners.findById(TEST_OWNER_ID)).willReturn(Optional.of(owner));
+
+			ServletException ex = assertThrows(ServletException.class,
+					() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, missingPetId))
+						.andReturn());
+
+			assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+			assertThat(ex.getCause().getMessage()).contains("Pet with id 999 not found");
+		}
+
 	}
 
 }

@@ -16,6 +16,8 @@
 
 package org.springframework.samples.petclinic.owner;
 
+import jakarta.servlet.ServletException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledInNativeImage;
@@ -33,6 +35,9 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -246,6 +251,30 @@ class OwnerControllerTests {
 			.andExpect(status().is3xxRedirection())
 			.andExpect(redirectedUrl("/owners/" + pathOwnerId + "/edit"))
 			.andExpect(flash().attributeExists("error"));
+	}
+
+	@Test
+	void testFindOwnerNotFound() throws Exception {
+		int missingOwnerId = 999;
+		given(this.owners.findById(missingOwnerId)).willReturn(Optional.empty());
+
+		ServletException ex = assertThrows(ServletException.class,
+				() -> mockMvc.perform(get("/owners/{ownerId}/edit", missingOwnerId)).andReturn());
+
+		assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+		assertThat(ex.getCause().getMessage()).contains("Owner not found with id: 999");
+	}
+
+	@Test
+	void testShowOwnerNotFound() throws Exception {
+		int missingOwnerId = 999;
+		given(this.owners.findById(missingOwnerId)).willReturn(Optional.empty());
+
+		ServletException ex = assertThrows(ServletException.class,
+				() -> mockMvc.perform(get("/owners/{ownerId}", missingOwnerId)).andReturn());
+
+		assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+		assertThat(ex.getCause().getMessage()).contains("Owner not found with id: 999");
 	}
 
 }

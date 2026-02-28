@@ -16,6 +16,8 @@
 
 package org.springframework.samples.petclinic.owner;
 
+import jakarta.servlet.ServletException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -32,6 +34,9 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -74,8 +79,9 @@ class PetControllerTests {
 		Owner owner = new Owner();
 		Pet pet = new Pet();
 		Pet dog = new Pet();
-		owner.addPet(pet);
+		// Add dog first so duplicate-name check can find it when updating pet
 		owner.addPet(dog);
+		owner.addPet(pet);
 		pet.setId(TEST_PET_ID);
 		dog.setId(TEST_PET_ID + 1);
 		pet.setName("petty");
@@ -204,6 +210,64 @@ class PetControllerTests {
 				.andExpect(model().attributeHasFieldErrors("pet", "name"))
 				.andExpect(model().attributeHasFieldErrorCode("pet", "name", "required"))
 				.andExpect(view().name("pets/createOrUpdatePetForm"));
+		}
+
+		@Test
+		void testProcessUpdateFormWithDuplicateName() throws Exception {
+			// Pet with id=1 is named "petty", pet with id=2 is named "doggy"
+			// Renaming pet 1 to "doggy" should trigger duplicate error
+			mockMvc
+				.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID).param("name", "doggy")
+					.param("type", "hamster")
+					.param("birthDate", "2015-02-12"))
+				.andExpect(model().attributeHasErrors("pet"))
+				.andExpect(model().attributeHasFieldErrors("pet", "name"))
+				.andExpect(model().attributeHasFieldErrorCode("pet", "name", "duplicate"))
+				.andExpect(status().isOk())
+				.andExpect(view().name("pets/createOrUpdatePetForm"));
+		}
+
+		@Test
+		void testProcessUpdateFormWithFutureBirthDate() throws Exception {
+			mockMvc
+				.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID).param("name", "Betty")
+					.param("type", "hamster")
+					.param("birthDate", "2999-01-01"))
+				.andExpect(model().attributeHasErrors("pet"))
+				.andExpect(model().attributeHasFieldErrors("pet", "birthDate"))
+				.andExpect(model().attributeHasFieldErrorCode("pet", "birthDate", "typeMismatch.birthDate"))
+				.andExpect(status().isOk())
+				.andExpect(view().name("pets/createOrUpdatePetForm"));
+		}
+
+	}
+
+	@Nested
+	class FindOwnerAndPetErrorCases {
+
+		@Test
+		void testFindOwnerNotFound() throws Exception {
+			int missingOwnerId = 999;
+			given(owners.findById(missingOwnerId)).willReturn(Optional.empty());
+
+			ServletException ex = assertThrows(ServletException.class,
+					() -> mockMvc.perform(get("/owners/{ownerId}/pets/new", missingOwnerId)).andReturn());
+
+			assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+			assertThat(ex.getCause().getMessage()).contains("Owner not found with id: 999");
+		}
+
+		@Test
+		void testFindPetOwnerNotFound() throws Exception {
+			int missingOwnerId = 999;
+			given(owners.findById(missingOwnerId)).willReturn(Optional.empty());
+
+			ServletException ex = assertThrows(ServletException.class,
+					() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/edit", missingOwnerId, TEST_PET_ID))
+						.andReturn());
+
+			assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+			assertThat(ex.getCause().getMessage()).contains("Owner not found with id: 999");
 		}
 
 	}
