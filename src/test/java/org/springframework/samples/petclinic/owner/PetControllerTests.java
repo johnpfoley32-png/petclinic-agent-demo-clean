@@ -32,6 +32,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -204,6 +205,65 @@ class PetControllerTests {
 				.andExpect(model().attributeHasFieldErrors("pet", "name"))
 				.andExpect(model().attributeHasFieldErrorCode("pet", "name", "required"))
 				.andExpect(view().name("pets/createOrUpdatePetForm"));
+		}
+
+		@Test
+		void testProcessUpdateFormWithDuplicateName() throws Exception {
+			// Pet with id=1 is named "petty". Editing pet id=2 ("doggy") and
+			// renaming it to "petty" should trigger the duplicate-name check
+			// because another pet with a different id already owns that name.
+			mockMvc
+				.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID + 1)
+					.param("name", "petty")
+					.param("type", "hamster")
+					.param("birthDate", "2015-02-12"))
+				.andExpect(model().attributeHasNoErrors("owner"))
+				.andExpect(model().attributeHasErrors("pet"))
+				.andExpect(model().attributeHasFieldErrors("pet", "name"))
+				.andExpect(model().attributeHasFieldErrorCode("pet", "name", "duplicate"))
+				.andExpect(status().isOk())
+				.andExpect(view().name("pets/createOrUpdatePetForm"));
+		}
+
+		@Test
+		void testProcessUpdateFormWithFutureBirthDate() throws Exception {
+			String futureBirthDate = LocalDate.now().plusMonths(1).toString();
+			mockMvc
+				.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID).param("name", "Betty")
+					.param("type", "hamster")
+					.param("birthDate", futureBirthDate))
+				.andExpect(model().attributeHasNoErrors("owner"))
+				.andExpect(model().attributeHasErrors("pet"))
+				.andExpect(model().attributeHasFieldErrors("pet", "birthDate"))
+				.andExpect(model().attributeHasFieldErrorCode("pet", "birthDate", "typeMismatch.birthDate"))
+				.andExpect(status().isOk())
+				.andExpect(view().name("pets/createOrUpdatePetForm"));
+		}
+
+	}
+
+	@Nested
+	class FindOwnerAndPetEdgeCases {
+
+		@Test
+		void testFindOwnerThrowsWhenOwnerNotFound() {
+			int missingOwnerId = 999;
+			given(owners.findById(missingOwnerId)).willReturn(Optional.empty());
+			assertThatThrownBy(() -> mockMvc.perform(get("/owners/{ownerId}/pets/new", missingOwnerId)))
+				.hasRootCauseInstanceOf(IllegalArgumentException.class)
+				.rootCause()
+				.hasMessageContaining("Owner not found with id: " + missingOwnerId);
+		}
+
+		@Test
+		void testFindPetThrowsWhenOwnerNotFoundForEdit() {
+			int missingOwnerId = 999;
+			given(owners.findById(missingOwnerId)).willReturn(Optional.empty());
+			assertThatThrownBy(
+					() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/edit", missingOwnerId, TEST_PET_ID)))
+				.hasRootCauseInstanceOf(IllegalArgumentException.class)
+				.rootCause()
+				.hasMessageContaining("Owner not found with id: " + missingOwnerId);
 		}
 
 	}
