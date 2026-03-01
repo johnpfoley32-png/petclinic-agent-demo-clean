@@ -28,10 +28,12 @@ import org.springframework.test.context.aot.DisabledInAotMode;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import jakarta.servlet.ServletException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -251,6 +253,32 @@ class PetControllerTests {
 			.andExpect(status().is3xxRedirection())
 			.andExpect(view().name("redirect:/owners/{ownerId}"))
 			.andExpect(flash().attributeExists("message"));
+	}
+
+	@Nested
+	class FindOwnerAndPetErrorPaths {
+
+		@Test
+		void testFindOwnerNotFound() {
+			int missingOwnerId = 999;
+			given(owners.findById(missingOwnerId)).willReturn(Optional.empty());
+
+			assertThatThrownBy(() -> mockMvc.perform(get("/owners/{ownerId}/pets/new", missingOwnerId)))
+				.isInstanceOf(ServletException.class)
+				.hasCauseInstanceOf(IllegalArgumentException.class);
+		}
+
+		@Test
+		void testFindPetOwnerNotFoundForEdit() {
+			int missingOwnerId = 999;
+			given(owners.findById(missingOwnerId)).willReturn(Optional.empty());
+
+			assertThatThrownBy(
+					() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/edit", missingOwnerId, TEST_PET_ID)))
+				.isInstanceOf(ServletException.class)
+				.hasCauseInstanceOf(IllegalArgumentException.class);
+		}
+
 	}
 
 }
