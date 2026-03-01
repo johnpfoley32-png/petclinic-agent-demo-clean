@@ -16,6 +16,8 @@
 
 package org.springframework.samples.petclinic.owner;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -89,6 +91,31 @@ class VisitControllerTests {
 			.andExpect(model().attributeHasErrors("visit"))
 			.andExpect(status().isOk())
 			.andExpect(view().name("pets/createOrUpdateVisitForm"));
+	}
+
+	@Test
+	void testLoadPetWithVisitThrowsWhenOwnerNotFound() {
+		given(this.owners.findById(anyInt())).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", 999, TEST_PET_ID)))
+			.rootCause()
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("Owner not found with id: 999");
+	}
+
+	@Test
+	void testLoadPetWithVisitThrowsWhenPetNotFound() {
+		// Owner exists but has no pet with id 999
+		Owner owner = new Owner();
+		Pet pet = new Pet();
+		pet.setId(TEST_PET_ID);
+		owner.addPet(pet);
+		given(this.owners.findById(TEST_OWNER_ID)).willReturn(Optional.of(owner));
+
+		assertThatThrownBy(() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, 999)))
+			.rootCause()
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("Pet with id 999 not found");
 	}
 
 }
