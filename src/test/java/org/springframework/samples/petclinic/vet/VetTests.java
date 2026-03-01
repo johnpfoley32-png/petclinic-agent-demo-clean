@@ -15,6 +15,8 @@
  */
 package org.springframework.samples.petclinic.vet;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.util.SerializationUtils;
 
@@ -36,6 +38,58 @@ class VetTests {
 		assertThat(other.getFirstName()).isEqualTo(vet.getFirstName());
 		assertThat(other.getLastName()).isEqualTo(vet.getLastName());
 		assertThat(other.getId()).isEqualTo(vet.getId());
+	}
+
+	@Test
+	void testAddSpecialty() {
+		Vet vet = new Vet();
+		Specialty surgery = new Specialty();
+		surgery.setName("surgery");
+
+		vet.addSpecialty(surgery);
+
+		assertThat(vet.getSpecialties()).hasSize(1);
+		assertThat(vet.getSpecialties().get(0).getName()).isEqualTo("surgery");
+	}
+
+	@Test
+	void testGetNrOfSpecialties() {
+		Vet vet = new Vet();
+		assertThat(vet.getNrOfSpecialties()).isEqualTo(0);
+
+		Specialty surgery = new Specialty();
+		surgery.setName("surgery");
+		vet.addSpecialty(surgery);
+		assertThat(vet.getNrOfSpecialties()).isEqualTo(1);
+
+		Specialty radiology = new Specialty();
+		radiology.setName("radiology");
+		vet.addSpecialty(radiology);
+		assertThat(vet.getNrOfSpecialties()).isEqualTo(2);
+	}
+
+	@Test
+	void testSpecialtiesAreSortedByName() {
+		Vet vet = new Vet();
+
+		Specialty surgery = new Specialty();
+		surgery.setName("surgery");
+
+		Specialty dentistry = new Specialty();
+		dentistry.setName("dentistry");
+
+		Specialty radiology = new Specialty();
+		radiology.setName("radiology");
+
+		vet.addSpecialty(surgery);
+		vet.addSpecialty(dentistry);
+		vet.addSpecialty(radiology);
+
+		List<Specialty> specialties = vet.getSpecialties();
+		assertThat(specialties).hasSize(3);
+		assertThat(specialties.get(0).getName()).isEqualTo("dentistry");
+		assertThat(specialties.get(1).getName()).isEqualTo("radiology");
+		assertThat(specialties.get(2).getName()).isEqualTo("surgery");
 	}
 
 }
