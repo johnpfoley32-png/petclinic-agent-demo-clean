@@ -16,6 +16,21 @@
 
 package org.springframework.samples.petclinic.owner;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+import jakarta.servlet.ServletException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -27,18 +42,6 @@ import org.springframework.context.annotation.FilterType;
 import org.springframework.test.context.aot.DisabledInAotMode;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
-
-import static org.mockito.BDDMockito.given;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 
 /**
  * Test class for the {@link PetController}
@@ -251,6 +254,61 @@ class PetControllerTests {
 			.andExpect(status().is3xxRedirection())
 			.andExpect(view().name("redirect:/owners/{ownerId}"))
 			.andExpect(flash().attributeExists("message"));
+	}
+
+	@Test
+	void testFindOwnerNotFound() {
+		int nonExistentOwnerId = 999;
+		given(this.owners.findById(nonExistentOwnerId)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> mockMvc.perform(get("/owners/{ownerId}/pets/new", nonExistentOwnerId)))
+			.isInstanceOf(ServletException.class)
+			.hasCauseInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void testFindPetOwnerNotFound() {
+		int nonExistentOwnerId = 999;
+		given(this.owners.findById(nonExistentOwnerId)).willReturn(Optional.empty());
+
+		assertThatThrownBy(
+				() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/edit", nonExistentOwnerId, TEST_PET_ID)))
+			.isInstanceOf(ServletException.class)
+			.hasCauseInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void testProcessUpdateFormWithNewPetAddsToOwner() throws Exception {
+		// Set up two different owners: one without pet 5 (for findOwner),
+		// one with pet 5 (for findPet). This triggers the else branch in
+		// updatePetDetails where owner.getPet(id) returns null.
+		Owner ownerWithoutPet = new Owner();
+		Owner ownerWithPet = new Owner();
+		Pet pet = new Pet();
+		pet.setName("NewPet");
+		ownerWithPet.addPet(pet);
+		pet.setId(5);
+
+		given(this.owners.findById(TEST_OWNER_ID)).willReturn(Optional.of(ownerWithoutPet), Optional.of(ownerWithPet));
+
+		mockMvc
+			.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, 5).param("name", "NewPet")
+				.param("type", "hamster")
+				.param("birthDate", "2015-02-12"))
+			.andExpect(status().is3xxRedirection())
+			.andExpect(view().name("redirect:/owners/{ownerId}"))
+			.andExpect(flash().attributeExists("message"));
+	}
+
+	@Test
+	void testProcessCreationFormWithNullBirthDate() throws Exception {
+		// Submit without birthDate to cover the null check branch in birthDate validation
+		mockMvc
+			.perform(post("/owners/{ownerId}/pets/new", TEST_OWNER_ID).param("name", "Betty").param("type", "hamster"))
+			.andExpect(model().attributeHasErrors("pet"))
+			.andExpect(model().attributeHasFieldErrors("pet", "birthDate"))
+			.andExpect(status().isOk())
+			.andExpect(view().name("pets/createOrUpdatePetForm"));
 	}
 
 }

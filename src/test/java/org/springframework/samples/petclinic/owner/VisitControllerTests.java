@@ -16,12 +16,18 @@
 
 package org.springframework.samples.petclinic.owner;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
+
+import java.util.Optional;
+
+import jakarta.servlet.ServletException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,8 +37,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.aot.DisabledInAotMode;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.Optional;
 
 /**
  * Test class for {@link VisitController}
@@ -89,6 +93,43 @@ class VisitControllerTests {
 			.andExpect(model().attributeHasErrors("visit"))
 			.andExpect(status().isOk())
 			.andExpect(view().name("pets/createOrUpdateVisitForm"));
+	}
+
+	@Test
+	void testLoadPetWithVisitOwnerNotFound() {
+		int nonExistentOwnerId = 999;
+		given(this.owners.findById(nonExistentOwnerId)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> mockMvc
+			.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", nonExistentOwnerId, TEST_PET_ID)))
+			.isInstanceOf(ServletException.class)
+			.hasCauseInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void testLoadPetWithVisitPetNotFound() {
+		int nonExistentPetId = 999;
+		// Owner exists but has no pet with the given ID
+		Owner owner = new Owner();
+		Pet pet = new Pet();
+		owner.addPet(pet);
+		pet.setId(TEST_PET_ID); // Only pet with ID 1 exists
+		given(this.owners.findById(TEST_OWNER_ID)).willReturn(Optional.of(owner));
+
+		assertThatThrownBy(() -> mockMvc
+			.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, nonExistentPetId)))
+			.isInstanceOf(ServletException.class)
+			.hasCauseInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void testProcessNewVisitFormSuccessFlashMessage() throws Exception {
+		mockMvc
+			.perform(post("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, TEST_PET_ID)
+				.param("name", "George")
+				.param("description", "Visit Description"))
+			.andExpect(status().is3xxRedirection())
+			.andExpect(flash().attributeExists("message"));
 	}
 
 }
