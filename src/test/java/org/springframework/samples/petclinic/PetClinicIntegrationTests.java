@@ -45,7 +45,8 @@ public class PetClinicIntegrationTests {
 
 	@Test
 	void testFindAll() {
-		vets.findAll();
+		var result = vets.findAll();
+		assertThat(result).isNotEmpty();
 		vets.findAll(); // served from cache
 	}
 
@@ -61,6 +62,32 @@ public class PetClinicIntegrationTests {
 		RestTemplate template = builder.rootUri("http://localhost:" + port).build();
 		ResponseEntity<String> result = template.exchange(RequestEntity.get("/owners?lastName=").build(), String.class);
 		assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+	}
+
+	@Test
+	void testVetListHtml() {
+		RestTemplate template = builder.rootUri("http://localhost:" + port).build();
+		ResponseEntity<String> result = template.exchange(RequestEntity.get("/vets.html").build(), String.class);
+		assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+	}
+
+	@Test
+	void testVetListJson() {
+		RestTemplate template = builder.rootUri("http://localhost:" + port).build();
+		ResponseEntity<String> result = template.exchange(RequestEntity.get("/vets").build(), String.class);
+		assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+	}
+
+	@Test
+	void testErrorPage() {
+		RestTemplate template = builder.rootUri("http://localhost:" + port).build();
+		try {
+			template.exchange(RequestEntity.get("/oups").build(), String.class);
+			throw new AssertionError("Expected HttpServerErrorException");
+		}
+		catch (org.springframework.web.client.HttpServerErrorException ex) {
+			assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+		}
 	}
 
 	public static void main(String[] args) {
