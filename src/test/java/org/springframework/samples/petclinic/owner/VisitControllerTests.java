@@ -16,14 +16,19 @@
 
 package org.springframework.samples.petclinic.owner;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledInNativeImage;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,6 +94,40 @@ class VisitControllerTests {
 			.andExpect(model().attributeHasErrors("visit"))
 			.andExpect(status().isOk())
 			.andExpect(view().name("pets/createOrUpdateVisitForm"));
+	}
+
+	@Test
+	void testProcessNewVisitFormSuccessHasFlashMessage() throws Exception {
+		mockMvc
+			.perform(post("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, TEST_PET_ID)
+				.param("name", "George")
+				.param("description", "Visit Description"))
+			.andExpect(status().is3xxRedirection())
+			.andExpect(flash().attributeExists("message"));
+	}
+
+	@Nested
+	class LoadPetWithVisitErrors {
+
+		@Test
+		void testLoadPetWithVisitOwnerNotFound() {
+			int missingOwnerId = 999;
+			given(owners.findById(missingOwnerId)).willReturn(Optional.empty());
+
+			ServletException ex = assertThrows(ServletException.class, () -> mockMvc
+				.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", missingOwnerId, TEST_PET_ID)));
+			assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+		}
+
+		@Test
+		void testLoadPetWithVisitPetNotFound() {
+			int missingPetId = 999;
+
+			ServletException ex = assertThrows(ServletException.class, () -> mockMvc
+				.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, missingPetId)));
+			assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+		}
+
 	}
 
 }

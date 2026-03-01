@@ -28,10 +28,14 @@ import org.springframework.test.context.aot.DisabledInAotMode;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import jakarta.servlet.ServletException;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -251,6 +255,84 @@ class PetControllerTests {
 			.andExpect(status().is3xxRedirection())
 			.andExpect(view().name("redirect:/owners/{ownerId}"))
 			.andExpect(flash().attributeExists("message"));
+	}
+
+	@Nested
+	class FindOwnerErrors {
+
+		@Test
+		void testFindOwnerNotFound() {
+			int missingOwnerId = 999;
+			given(owners.findById(missingOwnerId)).willReturn(Optional.empty());
+
+			ServletException ex = assertThrows(ServletException.class,
+					() -> mockMvc.perform(get("/owners/{ownerId}/pets/new", missingOwnerId)));
+			assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+		}
+
+		@Test
+		void testFindPetOwnerNotFound() {
+			int missingOwnerId = 999;
+			given(owners.findById(missingOwnerId)).willReturn(Optional.empty());
+
+			ServletException ex = assertThrows(ServletException.class,
+					() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/edit", missingOwnerId, TEST_PET_ID)));
+			assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+		}
+
+	}
+
+	@Nested
+	class ProcessCreationFormEdgeCases {
+
+		@Test
+		void testProcessCreationFormWithNullBirthDate() throws Exception {
+			// PetValidator rejects missing birthDate
+			// Covers the pet.getBirthDate() != null false branch in processCreationForm
+			mockMvc
+				.perform(post("/owners/{ownerId}/pets/new", TEST_OWNER_ID).param("name", "Betty")
+					.param("type", "hamster"))
+				.andExpect(model().attributeHasErrors("pet"))
+				.andExpect(model().attributeHasFieldErrors("pet", "birthDate"))
+				.andExpect(model().attributeHasFieldErrorCode("pet", "birthDate", "required"))
+				.andExpect(status().isOk())
+				.andExpect(view().name("pets/createOrUpdatePetForm"));
+		}
+
+	}
+
+	@Nested
+	class ProcessUpdateFormEdgeCases {
+
+		@Test
+		void testProcessUpdateFormWithNullBirthDate() throws Exception {
+			// PetValidator rejects missing birthDate
+			// Covers the pet.getBirthDate() != null false branch in processUpdateForm
+			mockMvc
+				.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID).param("name", "Betty")
+					.param("type", "hamster"))
+				.andExpect(model().attributeHasErrors("pet"))
+				.andExpect(model().attributeHasFieldErrors("pet", "birthDate"))
+				.andExpect(model().attributeHasFieldErrorCode("pet", "birthDate", "required"))
+				.andExpect(status().isOk())
+				.andExpect(view().name("pets/createOrUpdatePetForm"));
+		}
+
+		@Test
+		void testProcessUpdateFormWithUniqueNewName() throws Exception {
+			// Pet name is set to a completely new unique name (not matching any existing
+			// pet)
+			// Covers the existingPet == null branch inside StringUtils.hasText(petName)
+			// block
+			mockMvc
+				.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID)
+					.param("name", "UniqueNewName")
+					.param("type", "hamster")
+					.param("birthDate", "2015-02-12"))
+				.andExpect(status().is3xxRedirection())
+				.andExpect(view().name("redirect:/owners/{ownerId}"));
+		}
+
 	}
 
 }
