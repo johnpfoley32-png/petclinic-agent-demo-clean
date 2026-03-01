@@ -16,6 +16,8 @@
 
 package org.springframework.samples.petclinic.vet;
 
+import java.util.Collections;
+
 import org.assertj.core.util.Lists;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.condition.DisabledInNativeImage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.aot.DisabledInAotMode;
@@ -31,6 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
+import static org.hamcrest.Matchers.empty;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -95,6 +99,64 @@ class VetControllerTests {
 			.andExpect(status().isOk());
 		actions.andExpect(content().contentType(MediaType.APPLICATION_JSON))
 			.andExpect(jsonPath("$.vetList[0].id").value(1));
+	}
+
+	@Test
+	void testShowVetListHtmlPaginationAttributes() throws Exception {
+		mockMvc.perform(MockMvcRequestBuilders.get("/vets.html?page=1"))
+			.andExpect(status().isOk())
+			.andExpect(model().attribute("currentPage", 1))
+			.andExpect(model().attribute("totalPages", 1))
+			.andExpect(model().attributeExists("totalItems"))
+			.andExpect(model().attributeExists("listVets"));
+	}
+
+	@Test
+	void testShowVetListHtmlPage2() throws Exception {
+		// Simulate 6 vets total → 2 pages of 5
+		given(this.vets.findAll(any(Pageable.class)))
+			.willReturn(new PageImpl<>(Lists.newArrayList(james()), PageRequest.of(1, 5), 6));
+
+		mockMvc.perform(MockMvcRequestBuilders.get("/vets.html?page=2"))
+			.andExpect(status().isOk())
+			.andExpect(model().attribute("currentPage", 2))
+			.andExpect(model().attribute("totalPages", 2))
+			.andExpect(view().name("vets/vetList"));
+	}
+
+	@Test
+	void testShowVetListHtmlEmpty() throws Exception {
+		given(this.vets.findAll(any(Pageable.class))).willReturn(new PageImpl<>(Collections.emptyList()));
+
+		mockMvc.perform(MockMvcRequestBuilders.get("/vets.html?page=1"))
+			.andExpect(status().isOk())
+			.andExpect(model().attribute("listVets", empty()))
+			.andExpect(view().name("vets/vetList"));
+	}
+
+	@Test
+	void testShowResourcesVetListEmpty() throws Exception {
+		given(this.vets.findAll()).willReturn(Collections.emptyList());
+
+		mockMvc.perform(get("/vets").accept(MediaType.APPLICATION_JSON))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.vetList").isEmpty());
+	}
+
+	@Test
+	void testShowResourcesVetListSpecialties() throws Exception {
+		mockMvc.perform(get("/vets").accept(MediaType.APPLICATION_JSON))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.vetList[1].specialties[0].name").value("radiology"))
+			.andExpect(jsonPath("$.vetList[0].specialties").isEmpty());
+	}
+
+	@Test
+	void testShowVetListHtmlDefaultPage() throws Exception {
+		mockMvc.perform(MockMvcRequestBuilders.get("/vets.html"))
+			.andExpect(status().isOk())
+			.andExpect(model().attribute("currentPage", 1))
+			.andExpect(view().name("vets/vetList"));
 	}
 
 }
