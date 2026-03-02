@@ -63,7 +63,7 @@ public class PetValidatorTests {
 	}
 
 	@Test
-	void testValidate() {
+	void testValidPet() {
 		petType.setName(petTypeName);
 		pet.setName(petName);
 		pet.setType(petType);
@@ -74,11 +74,45 @@ public class PetValidatorTests {
 		assertFalse(errors.hasErrors());
 	}
 
+	@Test
+	void testValidPetWithFutureBirthDate() {
+		petType.setName(petTypeName);
+		pet.setName(petName);
+		pet.setType(petType);
+		pet.setBirthDate(LocalDate.now().plusYears(1));
+
+		petValidator.validate(pet, errors);
+
+		// PetValidator only checks for null birthDate, not future dates
+		assertFalse(errors.hasFieldErrors("birthDate"));
+	}
+
+	@Test
+	void testValidPetWithDuplicateName() {
+		// Set up an owner with an existing pet named "Buddy"
+		Owner owner = new Owner();
+		Pet existingPet = new Pet();
+		existingPet.setName(petName);
+		owner.addPet(existingPet);
+
+		// Create a new pet with the same name
+		petType.setName(petTypeName);
+		pet.setName(petName);
+		pet.setType(petType);
+		pet.setBirthDate(petBirthDate);
+		owner.addPet(pet);
+
+		petValidator.validate(pet, errors);
+
+		// PetValidator does not check for duplicate names within an owner
+		assertFalse(errors.hasErrors());
+	}
+
 	@Nested
 	class ValidateHasErrors {
 
 		@Test
-		void testValidateWithInvalidPetName() {
+		void testValidateWithBlankPetName() {
 			petType.setName(petTypeName);
 			pet.setName("");
 			pet.setType(petType);
@@ -90,7 +124,19 @@ public class PetValidatorTests {
 		}
 
 		@Test
-		void testValidateWithInvalidPetType() {
+		void testValidateWithNullPetName() {
+			petType.setName(petTypeName);
+			pet.setType(petType);
+			pet.setBirthDate(petBirthDate);
+			// name is null by default
+
+			petValidator.validate(pet, errors);
+
+			assertTrue(errors.hasFieldErrors("name"));
+		}
+
+		@Test
+		void testValidateNewPetWithNullType() {
 			pet.setName(petName);
 			pet.setType(null);
 			pet.setBirthDate(petBirthDate);
@@ -101,7 +147,7 @@ public class PetValidatorTests {
 		}
 
 		@Test
-		void testValidateWithInvalidBirthDate() {
+		void testValidateWithNullBirthDate() {
 			petType.setName(petTypeName);
 			pet.setName(petName);
 			pet.setType(petType);
@@ -110,6 +156,40 @@ public class PetValidatorTests {
 			petValidator.validate(pet, errors);
 
 			assertTrue(errors.hasFieldErrors("birthDate"));
+		}
+
+	}
+
+	@Nested
+	class ValidateExistingPet {
+
+		@Test
+		void testExistingPetWithNullTypeDoesNotProduceTypeError() {
+			// An existing pet (id set) with null type should NOT get a type error
+			// because PetValidator only requires type for new pets
+			pet.setId(1);
+			pet.setName(petName);
+			pet.setType(null);
+			pet.setBirthDate(petBirthDate);
+
+			petValidator.validate(pet, errors);
+
+			assertFalse(errors.hasFieldErrors("type"));
+		}
+
+	}
+
+	@Nested
+	class Supports {
+
+		@Test
+		void testSupportsPetClass() {
+			assertTrue(petValidator.supports(Pet.class));
+		}
+
+		@Test
+		void testDoesNotSupportNonPetClass() {
+			assertFalse(petValidator.supports(Owner.class));
 		}
 
 	}
