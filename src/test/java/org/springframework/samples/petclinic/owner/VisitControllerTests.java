@@ -16,6 +16,8 @@
 
 package org.springframework.samples.petclinic.owner;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -23,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledInNativeImage;
@@ -89,6 +92,27 @@ class VisitControllerTests {
 			.andExpect(model().attributeHasErrors("visit"))
 			.andExpect(status().isOk())
 			.andExpect(view().name("pets/createOrUpdateVisitForm"));
+	}
+
+	@Test
+	void testInitNewVisitFormWithNonExistentOwner() throws Exception {
+		int nonExistentOwnerId = 999;
+		given(this.owners.findById(nonExistentOwnerId)).willReturn(Optional.empty());
+
+		ServletException ex = assertThrows(ServletException.class, () -> mockMvc
+			.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", nonExistentOwnerId, TEST_PET_ID)));
+		assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+	}
+
+	@Test
+	void testInitNewVisitFormWithNonExistentPet() throws Exception {
+		int nonExistentPetId = 999;
+		Owner owner = new Owner();
+		given(this.owners.findById(TEST_OWNER_ID)).willReturn(Optional.of(owner));
+
+		ServletException ex = assertThrows(ServletException.class, () -> mockMvc
+			.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, nonExistentPetId)));
+		assertInstanceOf(IllegalArgumentException.class, ex.getCause());
 	}
 
 }
