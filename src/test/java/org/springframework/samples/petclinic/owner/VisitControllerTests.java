@@ -16,12 +16,16 @@
 
 package org.springframework.samples.petclinic.owner;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
+
+import jakarta.servlet.ServletException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +52,10 @@ class VisitControllerTests {
 	private static final int TEST_OWNER_ID = 1;
 
 	private static final int TEST_PET_ID = 1;
+
+	private static final int INVALID_OWNER_ID = 999;
+
+	private static final int INVALID_PET_ID = 999;
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -89,6 +97,22 @@ class VisitControllerTests {
 			.andExpect(model().attributeHasErrors("visit"))
 			.andExpect(status().isOk())
 			.andExpect(view().name("pets/createOrUpdateVisitForm"));
+	}
+
+	@Test
+	void testInitNewVisitFormWithInvalidOwner() throws Exception {
+		given(this.owners.findById(INVALID_OWNER_ID)).willReturn(Optional.empty());
+
+		ServletException ex = assertThrows(ServletException.class,
+				() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", INVALID_OWNER_ID, TEST_PET_ID)));
+		assertInstanceOf(IllegalArgumentException.class, ex.getCause());
+	}
+
+	@Test
+	void testInitNewVisitFormWithInvalidPet() throws Exception {
+		ServletException ex = assertThrows(ServletException.class,
+				() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, INVALID_PET_ID)));
+		assertInstanceOf(IllegalArgumentException.class, ex.getCause());
 	}
 
 }

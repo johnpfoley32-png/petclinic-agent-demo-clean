@@ -141,9 +141,18 @@ class OwnerControllerTests {
 
 	@Test
 	void testProcessFindFormSuccess() throws Exception {
-		Page<Owner> tasks = new PageImpl<>(List.of(george(), new Owner()));
+		Owner anotherOwner = new Owner();
+		anotherOwner.setId(2);
+		anotherOwner.setLastName("Franklin");
+		Page<Owner> tasks = new PageImpl<>(List.of(george(), anotherOwner));
 		when(this.owners.findByLastNameStartingWith(anyString(), any(Pageable.class))).thenReturn(tasks);
-		mockMvc.perform(get("/owners?page=1")).andExpect(status().isOk()).andExpect(view().name("owners/ownersList"));
+		mockMvc.perform(get("/owners?page=1"))
+			.andExpect(status().isOk())
+			.andExpect(view().name("owners/ownersList"))
+			.andExpect(model().attribute("currentPage", 1))
+			.andExpect(model().attribute("totalPages", 1))
+			.andExpect(model().attribute("totalItems", 2L))
+			.andExpect(model().attributeExists("listOwners"));
 	}
 
 	@Test
