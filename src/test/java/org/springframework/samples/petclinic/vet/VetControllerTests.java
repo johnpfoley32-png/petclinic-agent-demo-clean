@@ -97,4 +97,30 @@ class VetControllerTests {
 			.andExpect(jsonPath("$.vetList[0].id").value(1));
 	}
 
+	@Test
+	void testShowVetListHtmlWithEmptyList() throws Exception {
+		given(this.vets.findAll(any(Pageable.class))).willReturn(new PageImpl<Vet>(Lists.newArrayList()));
+
+		mockMvc.perform(MockMvcRequestBuilders.get("/vets.html?page=1"))
+			.andExpect(status().isOk())
+			.andExpect(model().attributeExists("listVets"))
+			.andExpect(view().name("vets/vetList"));
+	}
+
+	@Test
+	void testShowVetListHtmlWithInvalidPageParameter() throws Exception {
+		mockMvc.perform(MockMvcRequestBuilders.get("/vets.html").param("page", "invalid"))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void testShowResourcesVetListWithEmptyList() throws Exception {
+		given(this.vets.findAll()).willReturn(Lists.newArrayList());
+
+		mockMvc.perform(get("/vets").accept(MediaType.APPLICATION_JSON))
+			.andExpect(status().isOk())
+			.andExpect(content().contentType(MediaType.APPLICATION_JSON))
+			.andExpect(jsonPath("$.vetList").isEmpty());
+	}
+
 }
