@@ -32,6 +32,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -251,6 +253,48 @@ class PetControllerTests {
 			.andExpect(status().is3xxRedirection())
 			.andExpect(view().name("redirect:/owners/{ownerId}"))
 			.andExpect(flash().attributeExists("message"));
+	}
+
+	@Test
+	void testFindOwnerNotFound() {
+		int nonExistentOwnerId = 999;
+		given(this.owners.findById(nonExistentOwnerId)).willReturn(Optional.empty());
+		Exception exception = assertThrows(Exception.class,
+				() -> mockMvc.perform(get("/owners/{ownerId}/pets/new", nonExistentOwnerId)));
+		assertInstanceOf(IllegalArgumentException.class, exception.getCause());
+	}
+
+	@Test
+	void testFindPetOwnerNotFound() {
+		int nonExistentOwnerId = 999;
+		given(this.owners.findById(nonExistentOwnerId)).willReturn(Optional.empty());
+		Exception exception = assertThrows(Exception.class,
+				() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/edit", nonExistentOwnerId, TEST_PET_ID)));
+		assertInstanceOf(IllegalArgumentException.class, exception.getCause());
+	}
+
+	@Test
+	void testProcessCreationFormWithNullBirthDate() throws Exception {
+		// Null birthDate triggers PetValidator required error, covering the null
+		// birthDate branch
+		mockMvc
+			.perform(post("/owners/{ownerId}/pets/new", TEST_OWNER_ID).param("name", "Betty").param("type", "hamster"))
+			.andExpect(model().attributeHasErrors("pet"))
+			.andExpect(model().attributeHasFieldErrors("pet", "birthDate"))
+			.andExpect(status().isOk())
+			.andExpect(view().name("pets/createOrUpdatePetForm"));
+	}
+
+	@Test
+	void testProcessUpdateFormWithNullBirthDate() throws Exception {
+		// Null birthDate triggers PetValidator required error on update form
+		mockMvc
+			.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID).param("name", "Betty")
+				.param("type", "hamster"))
+			.andExpect(model().attributeHasErrors("pet"))
+			.andExpect(model().attributeHasFieldErrors("pet", "birthDate"))
+			.andExpect(status().isOk())
+			.andExpect(view().name("pets/createOrUpdatePetForm"));
 	}
 
 }
