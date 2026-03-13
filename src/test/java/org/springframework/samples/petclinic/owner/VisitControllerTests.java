@@ -19,6 +19,7 @@ package org.springframework.samples.petclinic.owner;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
@@ -26,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledInNativeImage;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.aot.DisabledInAotMode;
@@ -33,6 +35,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Test class for {@link VisitController}
@@ -89,6 +93,33 @@ class VisitControllerTests {
 			.andExpect(model().attributeHasErrors("visit"))
 			.andExpect(status().isOk())
 			.andExpect(view().name("pets/createOrUpdateVisitForm"));
+	}
+
+	@Test
+	void testProcessNewVisitFormSuccessFlashMessage() throws Exception {
+		mockMvc
+			.perform(post("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, TEST_PET_ID)
+				.param("name", "George")
+				.param("description", "Visit Description"))
+			.andExpect(status().is3xxRedirection())
+			.andExpect(flash().attributeExists("message"));
+	}
+
+	@Test
+	void testLoadPetWithVisitOwnerNotFound() throws Exception {
+		given(this.owners.findById(99)).willReturn(Optional.empty());
+		assertThatThrownBy(() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", 99, TEST_PET_ID)))
+			.hasRootCauseInstanceOf(IllegalArgumentException.class)
+			.rootCause()
+			.hasMessageContaining("Owner not found with id: 99");
+	}
+
+	@Test
+	void testLoadPetWithVisitPetNotFound() throws Exception {
+		assertThatThrownBy(() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, 99)))
+			.hasRootCauseInstanceOf(IllegalArgumentException.class)
+			.rootCause()
+			.hasMessageContaining("Pet with id 99 not found");
 	}
 
 }

@@ -32,13 +32,14 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 
 /**
  * Test class for the {@link PetController}
@@ -250,6 +251,34 @@ class PetControllerTests {
 				.param("birthDate", "2015-02-12"))
 			.andExpect(status().is3xxRedirection())
 			.andExpect(view().name("redirect:/owners/{ownerId}"))
+			.andExpect(flash().attributeExists("message"));
+	}
+
+	@Test
+	void testFindOwnerNotFound() {
+		given(this.owners.findById(99)).willReturn(Optional.empty());
+		assertThatThrownBy(() -> mockMvc.perform(get("/owners/{ownerId}/pets/new", 99)))
+			.hasRootCauseInstanceOf(IllegalArgumentException.class)
+			.rootCause()
+			.hasMessageContaining("Owner not found with id: 99");
+	}
+
+	@Test
+	void testFindPetOwnerNotFound() {
+		given(this.owners.findById(99)).willReturn(Optional.empty());
+		assertThatThrownBy(() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/edit", 99, TEST_PET_ID)))
+			.hasRootCauseInstanceOf(IllegalArgumentException.class)
+			.rootCause()
+			.hasMessageContaining("Owner not found with id: 99");
+	}
+
+	@Test
+	void testProcessCreationFormFlashMessage() throws Exception {
+		mockMvc
+			.perform(post("/owners/{ownerId}/pets/new", TEST_OWNER_ID).param("name", "Betty")
+				.param("type", "hamster")
+				.param("birthDate", "2015-02-12"))
+			.andExpect(status().is3xxRedirection())
 			.andExpect(flash().attributeExists("message"));
 	}
 
