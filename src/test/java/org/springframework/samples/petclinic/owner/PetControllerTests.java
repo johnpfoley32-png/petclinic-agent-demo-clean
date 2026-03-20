@@ -32,6 +32,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -251,6 +253,32 @@ class PetControllerTests {
 			.andExpect(status().is3xxRedirection())
 			.andExpect(view().name("redirect:/owners/{ownerId}"))
 			.andExpect(flash().attributeExists("message"));
+	}
+
+	@Nested
+	class OwnerNotFound {
+
+		private static final int NON_EXISTENT_OWNER_ID = 999;
+
+		@BeforeEach
+		void setup() {
+			given(owners.findById(NON_EXISTENT_OWNER_ID)).willReturn(Optional.empty());
+		}
+
+		@Test
+		void testInitCreationFormOwnerNotFound() {
+			Exception thrown = assertThrows(Exception.class,
+					() -> mockMvc.perform(get("/owners/{ownerId}/pets/new", NON_EXISTENT_OWNER_ID)));
+			assertInstanceOf(IllegalArgumentException.class, thrown.getCause());
+		}
+
+		@Test
+		void testFindPetOwnerNotFound() {
+			Exception thrown = assertThrows(Exception.class, () -> mockMvc
+				.perform(get("/owners/{ownerId}/pets/{petId}/edit", NON_EXISTENT_OWNER_ID, TEST_PET_ID)));
+			assertInstanceOf(IllegalArgumentException.class, thrown.getCause());
+		}
+
 	}
 
 }
