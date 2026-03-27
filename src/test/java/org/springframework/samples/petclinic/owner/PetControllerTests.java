@@ -32,13 +32,16 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+
+import jakarta.servlet.ServletException;
 
 /**
  * Test class for the {@link PetController}
@@ -251,6 +254,44 @@ class PetControllerTests {
 			.andExpect(status().is3xxRedirection())
 			.andExpect(view().name("redirect:/owners/{ownerId}"))
 			.andExpect(flash().attributeExists("message"));
+	}
+
+	@Test
+	void testFindOwnerNotFound() {
+		given(this.owners.findById(99)).willReturn(Optional.empty());
+		Exception thrown = org.junit.jupiter.api.Assertions.assertThrows(ServletException.class,
+				() -> mockMvc.perform(get("/owners/{ownerId}/pets/new", 99)));
+		assertInstanceOf(IllegalArgumentException.class, thrown.getCause());
+	}
+
+	@Test
+	void testFindPetOwnerNotFound() {
+		given(this.owners.findById(99)).willReturn(Optional.empty());
+		Exception thrown = org.junit.jupiter.api.Assertions.assertThrows(ServletException.class,
+				() -> mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/edit", 99, TEST_PET_ID)));
+		assertInstanceOf(IllegalArgumentException.class, thrown.getCause());
+	}
+
+	@Test
+	void testProcessCreationFormWithNullBirthDate() throws Exception {
+		mockMvc
+			.perform(post("/owners/{ownerId}/pets/new", TEST_OWNER_ID).param("name", "Betty").param("type", "hamster"))
+			.andExpect(model().attributeHasErrors("pet"))
+			.andExpect(model().attributeHasFieldErrors("pet", "birthDate"))
+			.andExpect(model().attributeHasFieldErrorCode("pet", "birthDate", "required"))
+			.andExpect(status().isOk())
+			.andExpect(view().name("pets/createOrUpdatePetForm"));
+	}
+
+	@Test
+	void testProcessUpdateFormWithEmptyPetName() throws Exception {
+		mockMvc
+			.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID).param("name", "")
+				.param("type", "hamster")
+				.param("birthDate", "2015-02-12"))
+			.andExpect(model().attributeHasErrors("pet"))
+			.andExpect(status().isOk())
+			.andExpect(view().name("pets/createOrUpdatePetForm"));
 	}
 
 }
